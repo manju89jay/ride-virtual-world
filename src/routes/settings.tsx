@@ -44,7 +44,7 @@ function SettingsPage() {
         <div>
           <Label>Hill feel: {Math.round(s.difficulty * 100)}%</Label>
           <p className="text-sm text-muted-foreground">How much of the real gradient the trainer applies. 50% is a common choice.</p>
-          <Slider className="mt-3" min={0} max={1} step={0.05} value={[s.difficulty]} onValueChange={([difficulty]) => s.set({ difficulty })} />
+          <Slider className="mt-3" min={0} max={1} step={0.05} value={[s.difficulty]} onValueChange={([d]) => s.set({ difficulty: d ?? 0.5 })} />
         </div>
         <div className="flex items-center justify-between gap-4">
           <div>

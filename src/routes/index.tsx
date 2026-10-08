@@ -24,7 +24,7 @@ function Home() {
         <img src={hero} alt="Cyclist on a winding country road at golden hour" width={1600} height={912} className="h-[440px] w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-foreground/75 via-foreground/30 to-transparent" />
         <div className="absolute inset-0 flex flex-col justify-end p-8 text-background md:p-12">
-          <p className="text-sm font-bold uppercase tracking-[0.3em] text-primary">The Hedgerow Loop · 9.6 km</p>
+          <p className="text-sm font-bold uppercase tracking-[0.3em] text-primary">The Hedgerow Loop · 5.5 km</p>
           <h1 className="mt-2 max-w-xl font-display text-6xl font-bold uppercase leading-[0.9] md:text-7xl">Your roads. Your living room.</h1>
           <p className="mt-4 max-w-md text-base opacity-90">Rolling hills, a proper climb and your own trainer. No subscription.</p>
           <div className="mt-6 flex flex-wrap gap-3">

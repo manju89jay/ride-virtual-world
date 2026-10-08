@@ -8,7 +8,7 @@ import { getWorkout } from "@/lib/workouts";
 export const Route = createFileRoute("/ride")({
   ssr: false,
   validateSearch: (s: Record<string, unknown>): { workout?: string } =>
-    typeof s.workout === "string" ? { workout: s.workout } : {},
+    typeof s["workout"] === "string" ? { workout: s["workout"] } : {},
   head: () => ({
     meta: [
       { title: "Ride — Hedgerow" },

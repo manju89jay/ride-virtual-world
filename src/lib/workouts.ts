@@ -64,7 +64,7 @@ export const workoutDuration = (w: Workout) => w.segs.reduce((a, s) => a + s.dur
 export function targetAt(w: Workout, t: number) {
   let acc = 0;
   for (let i = 0; i < w.segs.length; i++) {
-    const s = w.segs[i];
+    const s = w.segs[i]!;
     if (t < acc + s.dur) {
       const f = (t - acc) / s.dur;
       const frac = s.to === undefined ? s.from : s.from + (s.to - s.from) * f;

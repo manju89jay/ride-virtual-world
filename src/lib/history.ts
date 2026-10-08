@@ -41,8 +41,8 @@ export function normalizedPower(p: number[]) {
   const rolled: number[] = [];
   let sum = 0;
   for (let i = 0; i < p.length; i++) {
-    sum += p[i];
-    if (i >= 30) sum -= p[i - 30];
+    sum += p[i]!;
+    if (i >= 30) sum -= p[i - 30]!;
     if (i >= 29) rolled.push((sum / 30) ** 4);
   }
   return avg(rolled) ** 0.25;

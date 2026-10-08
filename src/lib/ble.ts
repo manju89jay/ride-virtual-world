@@ -176,8 +176,8 @@ function readVarint(bytes: Uint8Array, start: number): number | null {
   let result = 0;
   let mul = 1;
   for (let i = start; i < bytes.length && i < start + 6; i++) {
-    result += (bytes[i] & 0x7f) * mul;
-    if (!(bytes[i] & 0x80)) return result;
+    result += ((bytes[i] ?? 0) & 0x7f) * mul;
+    if (!((bytes[i] ?? 0) & 0x80)) return result;
     mul *= 128;
   }
   return null;

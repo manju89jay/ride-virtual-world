@@ -5,7 +5,7 @@ export type Status = "disconnected" | "connecting" | "connected";
 
 type DeviceState = {
   trainer: { status: Status; name?: string | undefined; control: boolean };
-  hrm: { status: Status; name?: string };
+  hrm: { status: Status; name?: string | undefined };
   controller: { status: Status; name?: string | undefined; lastBit: number | null };
   power: number;
   cadence: number;

@@ -48,18 +48,18 @@ export function getCourse(): Course {
     x[i] = px;
     z[i] = pz;
     y[i] = elev(t);
-    minH = Math.min(minH, y[i]);
-    maxH = Math.max(maxH, y[i]);
+    minH = Math.min(minH, y[i]!);
+    maxH = Math.max(maxH, y[i]!);
     if (i > 0) {
-      const dx = x[i] - x[i - 1];
-      const dy = y[i] - y[i - 1];
-      const dz = z[i] - z[i - 1];
-      dist[i] = dist[i - 1] + Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const dx = x[i]! - x[i - 1]!;
+      const dy = y[i]! - y[i - 1]!;
+      const dz = z[i]! - z[i - 1]!;
+      dist[i] = dist[i - 1]! + Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
   }
   const coarse: Course["coarse"] = [];
-  for (let i = 0; i < N; i += 2) coarse.push({ x: x[i], z: z[i], h: y[i] });
-  cache = { n: N, x, y, z, dist, length: dist[N], coarse, minH, maxH };
+  for (let i = 0; i < N; i += 2) coarse.push({ x: x[i]!, z: z[i]!, h: y[i]! });
+  cache = { n: N, x, y, z, dist, length: dist[N]!, coarse, minH, maxH };
   return cache;
 }
 
@@ -79,23 +79,23 @@ export function sampleAt(sIn: number): Sample {
   let hi = c.n;
   while (hi - lo > 1) {
     const mid = (lo + hi) >> 1;
-    if (c.dist[mid] <= s) lo = mid;
+    if (c.dist[mid]! <= s) lo = mid;
     else hi = mid;
   }
   const i = lo;
   const j = i + 1;
-  const seg = c.dist[j] - c.dist[i] || 1;
-  const f = (s - c.dist[i]) / seg;
-  const dx = c.x[j] - c.x[i];
-  const dz = c.z[j] - c.z[i];
+  const seg = c.dist[j]! - c.dist[i]! || 1;
+  const f = (s - c.dist[i]!) / seg;
+  const dx = c.x[j]! - c.x[i]!;
+  const dz = c.z[j]! - c.z[i]!;
   const hl = Math.sqrt(dx * dx + dz * dz) || 1;
   return {
-    x: c.x[i] + dx * f,
-    y: c.y[i] + (c.y[j] - c.y[i]) * f,
-    z: c.z[i] + dz * f,
+    x: c.x[i]! + dx * f,
+    y: c.y[i]! + (c.y[j]! - c.y[i]!) * f,
+    z: c.z[i]! + dz * f,
     tx: dx / hl,
     tz: dz / hl,
-    grade: (c.y[j] - c.y[i]) / hl,
+    grade: (c.y[j]! - c.y[i]!) / hl,
   };
 }
 

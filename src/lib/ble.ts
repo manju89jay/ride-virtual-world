@@ -1,3 +1,4 @@
+/// <reference types="web-bluetooth" />
 import { useDevices } from "./store";
 
 const FTMS = 0x1826;

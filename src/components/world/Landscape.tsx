@@ -16,7 +16,7 @@ export function Terrain() {
   const geo = useMemo(() => {
     const g = new THREE.PlaneGeometry(2800, 2400, 180, 160);
     g.rotateX(-Math.PI / 2);
-    const pos = g.attributes.position as THREE.BufferAttribute;
+    const pos = g.attributes["position"] as THREE.BufferAttribute;
     const colors = new Float32Array(pos.count * 3);
     const c = new THREE.Color();
     const grassA = new THREE.Color("#6fa64a");
@@ -80,14 +80,14 @@ export function Road() {
       const j = Math.min(i + 1, c.n);
       const k = i === c.n ? 1 : j;
       const base = i === c.n ? 0 : i;
-      const dx = c.x[k] - c.x[base];
-      const dz = c.z[k] - c.z[base];
+      const dx = c.x[k]! - c.x[base]!;
+      const dz = c.z[k]! - c.z[base]!;
       const l = Math.hypot(dx, dz) || 1;
       const nx = -dz / l;
       const nz = dx / l;
-      const y = c.y[i] + 0.06;
-      pos.push(c.x[i] + nx * W, y, c.z[i] + nz * W, c.x[i] - nx * W, y, c.z[i] - nz * W);
-      uv.push(0, c.dist[i] / 16, 1, c.dist[i] / 16);
+      const y = c.y[i]! + 0.06;
+      pos.push(c.x[i]! + nx * W, y, c.z[i]! + nz * W, c.x[i]! - nx * W, y, c.z[i]! - nz * W);
+      uv.push(0, c.dist[i]! / 16, 1, c.dist[i]! / 16);
       if (i < c.n) {
         const a = i * 2;
         idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
@@ -119,13 +119,13 @@ export function Trees() {
     let guard = 0;
     while (out.length < COUNT && guard++ < 5000) {
       const i = Math.floor(rnd() * c.n);
-      const dx = c.x[i + 1] - c.x[i];
-      const dz = c.z[i + 1] - c.z[i];
+      const dx = c.x[i + 1]! - c.x[i]!;
+      const dz = c.z[i + 1]! - c.z[i]!;
       const l = Math.hypot(dx, dz) || 1;
       const side = rnd() < 0.5 ? -1 : 1;
       const off = 14 + rnd() ** 2 * 260;
-      const x = c.x[i] + (-dz / l) * off * side;
-      const z = c.z[i] + (dx / l) * off * side;
+      const x = c.x[i]! + (-dz / l) * off * side;
+      const z = c.z[i]! + (dx / l) * off * side;
       const { h, d } = terrainHeight(x, z);
       if (d < 12) continue;
       out.push({ x, y: h, z, s: 0.7 + rnd() * 0.8, pine: rnd() < 0.35, hue: rnd() });

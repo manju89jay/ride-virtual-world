@@ -46,7 +46,7 @@ export function LineChart({ series, className }: { series: { data: number[]; col
           let sum = 0;
           let n = 0;
           for (let j = i; j < Math.min(i + step, s.data.length); j++) {
-            sum += s.data[j];
+            sum += s.data[j] ?? 0;
             n++;
           }
           pts.push(`${(i / (len - 1)) * 1000},${200 - (sum / n / max) * 200}`);

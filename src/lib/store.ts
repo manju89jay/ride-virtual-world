@@ -4,9 +4,9 @@ import { persist } from "zustand/middleware";
 export type Status = "disconnected" | "connecting" | "connected";
 
 type DeviceState = {
-  trainer: { status: Status; name?: string; control: boolean };
+  trainer: { status: Status; name?: string | undefined; control: boolean };
   hrm: { status: Status; name?: string };
-  controller: { status: Status; name?: string; lastBit: number | null };
+  controller: { status: Status; name?: string | undefined; lastBit: number | null };
   power: number;
   cadence: number;
   heartRate: number;

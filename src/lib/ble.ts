@@ -1,5 +1,6 @@
 /// <reference types="web-bluetooth" />
 import { useDevices } from "./store";
+import { bleLog, hex } from "./bleLog";
 
 const FTMS = 0x1826;
 const IBD = 0x2ad2;
@@ -27,12 +28,28 @@ export function bleSupported() {
 
 const set = useDevices.setState;
 
+const CP_NAMES: Record<number, string> = { 0x00: "request control", 0x07: "start", 0x11: "set grade", 0x05: "target power" };
+const CP_RESULTS: Record<number, string> = { 1: "OK", 2: "not supported", 3: "invalid param", 4: "failed", 5: "not permitted" };
+
 function writeCP(bytes: number[]) {
   const cp = controlPoint;
   if (!cp) return;
   queue = queue
-    .then(() => cp.writeValueWithResponse(new Uint8Array(bytes)))
-    .catch((e) => console.warn("FTMS write failed", e));
+    .then(() => {
+      bleLog("trainer", "out", `${CP_NAMES[bytes[0]!] ?? "cmd"} · ${hex(bytes)}`);
+      return cp.writeValueWithResponse(new Uint8Array(bytes));
+    })
+    .catch((e) => {
+      bleLog("trainer", "info", `write failed: ${String(e)}`);
+      console.warn("FTMS write failed", e);
+    });
+}
+
+function onCPResponse(dv: DataView) {
+  const b = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+  if (b[0] === 0x80) {
+    bleLog("trainer", "in", `${CP_NAMES[b[1]!] ?? "cmd"} → ${CP_RESULTS[b[2]!] ?? b[2]} · ${hex(b)}`);
+  } else bleLog("trainer", "in", `control point · ${hex(b)}`);
 }
 
 /** grade in percent */

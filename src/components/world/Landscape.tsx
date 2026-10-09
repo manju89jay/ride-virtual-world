@@ -194,7 +194,9 @@ function GLBInstances({ url, places, castShadow = true }: { url: string; places:
 
 export function Vegetation() {
   const oaks = useMemo(() => scatter(220, 42, 14, 240), []);
+  const detailed = useMemo(() => scatter(120, 43, 14, 200), []);
   const pines = useMemo(() => scatter(160, 77, 16, 260), []);
+  const pinesB = useMemo(() => scatter(120, 78, 18, 260), []);
   const bushes = useMemo(() => scatter(180, 91, 8, 60), []);
   const rocks = useMemo(() => scatter(60, 133, 10, 120), []);
   const grassTufts = useMemo(() => scatter(400, 555, 6, 25), []);
@@ -202,9 +204,9 @@ export function Vegetation() {
   return (
     <>
       <GLBInstances url="/models/tree_oak.glb" places={oaks} />
-      <GLBInstances url="/models/tree_detailed.glb" places={useMemo(() => scatter(120, 43, 14, 200), [])} />
+      <GLBInstances url="/models/tree_detailed.glb" places={detailed} />
       <GLBInstances url="/models/tree_pineTallA.glb" places={pines} />
-      <GLBInstances url="/models/tree_pineDefaultA.glb" places={useMemo(() => scatter(120, 78, 18, 260), [])} />
+      <GLBInstances url="/models/tree_pineDefaultA.glb" places={pinesB} />
       <GLBInstances url="/models/plant_bushLarge.glb" places={bushes} castShadow={false} />
       <GLBInstances url="/models/rock_largeA.glb" places={rocks} />
       <GLBInstances url="/models/grass_large.glb" places={grassTufts} castShadow={false} />

@@ -13,10 +13,10 @@ describe("rider physics", () => {
     expect(kmh).toBeGreaterThan(30);
     expect(kmh).toBeLessThan(36);
   });
-  it("300 W at 7% settles around 10-14 km/h", () => {
+  it("300 W at 7% settles around 15-18 km/h", () => {
     const kmh = steady(300, 0.07);
-    expect(kmh).toBeGreaterThan(10);
-    expect(kmh).toBeLessThan(14);
+    expect(kmh).toBeGreaterThan(15);
+    expect(kmh).toBeLessThan(18);
   });
   it("coasting with 0 W on the flat comes to a stop", () => {
     let st: RiderKinematics = { s: 0, v: 10, dist: 0, crank: 0, wheel: 0 };

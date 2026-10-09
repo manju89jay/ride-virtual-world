@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { useGLTF } from "@react-three/drei";
 import { getCourse, terrainHeight } from "@/lib/course";
 
 function mulberry32(a: number) {
@@ -19,8 +20,8 @@ export function Terrain() {
     const pos = g.attributes["position"] as THREE.BufferAttribute;
     const colors = new Float32Array(pos.count * 3);
     const c = new THREE.Color();
-    const grassA = new THREE.Color("#6fa64a");
-    const grassB = new THREE.Color("#8fbf55");
+    const grassA = new THREE.Color("#7ba94e");
+    const grassB = new THREE.Color("#9cc05e");
     const field = new THREE.Color("#d9c46a");
     const verge = new THREE.Color("#5d8f3c");
     for (let i = 0; i < pos.count; i++) {
@@ -38,9 +39,20 @@ export function Terrain() {
     g.computeVertexNormals();
     return g;
   }, []);
+
+  const tex = useMemo(() => {
+    const loader = new THREE.TextureLoader();
+    const t = loader.load("/textures/grass_color.jpg");
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(220, 190);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
+  }, []);
+
   return (
     <mesh geometry={geo} receiveShadow>
-      <meshStandardMaterial vertexColors roughness={0.95} />
+      <meshStandardMaterial map={tex} vertexColors roughness={0.95} />
     </mesh>
   );
 }
@@ -50,14 +62,17 @@ function roadTexture() {
   cv.width = 256;
   cv.height = 512;
   const ctx = cv.getContext("2d")!;
-  ctx.fillStyle = "#5b5d60";
+  ctx.fillStyle = "#54565a";
   ctx.fillRect(0, 0, 256, 512);
   const rnd = mulberry32(7);
-  for (let i = 0; i < 6000; i++) {
-    const v = 70 + rnd() * 50;
+  for (let i = 0; i < 9000; i++) {
+    const v = 60 + rnd() * 60;
     ctx.fillStyle = `rgb(${v},${v},${v + 3})`;
     ctx.fillRect(rnd() * 256, rnd() * 512, 2, 2);
   }
+  // worn centre band
+  ctx.fillStyle = "rgba(0,0,0,0.08)";
+  ctx.fillRect(70, 0, 116, 512);
   ctx.fillStyle = "#f1efe6";
   ctx.fillRect(10, 0, 6, 512);
   ctx.fillRect(240, 0, 6, 512);
@@ -102,79 +117,108 @@ export function Road() {
   }, []);
   return (
     <mesh geometry={geo} receiveShadow>
-      <meshStandardMaterial map={tex} roughness={0.85} side={THREE.DoubleSide} />
+      <meshStandardMaterial map={tex} roughness={0.9} side={THREE.DoubleSide} />
     </mesh>
   );
 }
 
-export function Trees() {
-  const trunks = useRef<THREE.InstancedMesh>(null);
-  const pines = useRef<THREE.InstancedMesh>(null);
-  const oaks = useRef<THREE.InstancedMesh>(null);
-  const COUNT = 700;
-  const data = useMemo(() => {
-    const c = getCourse();
-    const rnd = mulberry32(42);
-    const out: { x: number; y: number; z: number; s: number; pine: boolean; hue: number }[] = [];
-    let guard = 0;
-    while (out.length < COUNT && guard++ < 5000) {
-      const i = Math.floor(rnd() * c.n);
-      const dx = c.x[i + 1]! - c.x[i]!;
-      const dz = c.z[i + 1]! - c.z[i]!;
-      const l = Math.hypot(dx, dz) || 1;
-      const side = rnd() < 0.5 ? -1 : 1;
-      const off = 14 + rnd() ** 2 * 260;
-      const x = c.x[i]! + (-dz / l) * off * side;
-      const z = c.z[i]! + (dx / l) * off * side;
-      const { h, d } = terrainHeight(x, z);
-      if (d < 12) continue;
-      out.push({ x, y: h, z, s: 0.7 + rnd() * 0.8, pine: rnd() < 0.35, hue: rnd() });
-    }
+type Placement = { x: number; y: number; z: number; s: number; rot: number };
+
+// Scatter placements along the course, biased near the road but off it.
+function scatter(count: number, seed: number, minOff: number, maxOff: number, maxCount?: number): Placement[] {
+  const c = getCourse();
+  const rnd = mulberry32(seed);
+  const out: Placement[] = [];
+  let guard = 0;
+  while (out.length < (maxCount ?? count) && guard++ < count * 8) {
+    const i = Math.floor(rnd() * c.n);
+    const dx = c.x[i + 1]! - c.x[i]!;
+    const dz = c.z[i + 1]! - c.z[i]!;
+    const l = Math.hypot(dx, dz) || 1;
+    const side = rnd() < 0.5 ? -1 : 1;
+    const off = minOff + rnd() ** 2 * (maxOff - minOff);
+    const x = c.x[i]! + (-dz / l) * off * side;
+    const z = c.z[i]! + (dx / l) * off * side;
+    const { h, d } = terrainHeight(x, z);
+    if (d < minOff - 2) continue;
+    out.push({ x, y: h - 0.15, z, s: 0.8 + rnd() * 0.9, rot: rnd() * Math.PI * 2 });
+  }
+  return out;
+}
+
+// Renders every mesh of a GLB as an InstancedMesh at the given placements.
+function GLBInstances({ url, places, castShadow = true }: { url: string; places: Placement[]; castShadow?: boolean }) {
+  const { scene } = useGLTF(url);
+  const meshes = useMemo(() => {
+    const out: THREE.Mesh[] = [];
+    scene.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) out.push(o as THREE.Mesh);
+    });
     return out;
-  }, []);
+  }, [scene]);
+  const refs = useRef<(THREE.InstancedMesh | null)[]>([]);
 
   useLayoutEffect(() => {
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
-    const col = new THREE.Color();
-    let pi = 0;
-    let oi = 0;
-    data.forEach((t, i) => {
-      m.compose(new THREE.Vector3(t.x, t.y + 1.5 * t.s, t.z), q, new THREE.Vector3(t.s, t.s, t.s));
-      trunks.current!.setMatrixAt(i, m);
-      if (t.pine) {
-        m.compose(new THREE.Vector3(t.x, t.y + 5.5 * t.s, t.z), q, new THREE.Vector3(t.s, t.s * 1.2, t.s));
-        pines.current!.setMatrixAt(pi, m);
-        pines.current!.setColorAt(pi++, col.setHSL(0.33 + t.hue * 0.04, 0.45, 0.24 + t.hue * 0.08));
-      } else {
-        m.compose(new THREE.Vector3(t.x, t.y + 5 * t.s, t.z), q, new THREE.Vector3(t.s * 1.1, t.s, t.s * 1.1));
-        oaks.current!.setMatrixAt(oi, m);
-        oaks.current!.setColorAt(oi++, col.setHSL(0.24 + t.hue * 0.07, 0.5, 0.32 + t.hue * 0.1));
-      }
+    const e = new THREE.Euler();
+    const v = new THREE.Vector3();
+    places.forEach((p, i) => {
+      q.setFromEuler(e.set(0, p.rot, 0));
+      m.compose(v.set(p.x, p.y, p.z), q, new THREE.Vector3(p.s, p.s, p.s));
+      refs.current.forEach((r) => r?.setMatrixAt(i, m));
     });
-    pines.current!.count = pi;
-    oaks.current!.count = oi;
-    [trunks, pines, oaks].forEach((r) => {
-      r.current!.instanceMatrix.needsUpdate = true;
-      if (r.current!.instanceColor) r.current!.instanceColor.needsUpdate = true;
-      r.current!.computeBoundingSphere();
+    refs.current.forEach((r) => {
+      if (!r) return;
+      r.instanceMatrix.needsUpdate = true;
+      r.computeBoundingSphere();
     });
-  }, [data]);
+  }, [places, meshes]);
 
   return (
     <>
-      <instancedMesh ref={trunks} args={[undefined, undefined, COUNT]} castShadow>
-        <cylinderGeometry args={[0.18, 0.28, 3, 6]} />
-        <meshStandardMaterial color="#6b4a2f" roughness={1} />
-      </instancedMesh>
-      <instancedMesh ref={pines} args={[undefined, undefined, COUNT]} castShadow>
-        <coneGeometry args={[2, 7, 7]} />
-        <meshStandardMaterial roughness={0.9} flatShading />
-      </instancedMesh>
-      <instancedMesh ref={oaks} args={[undefined, undefined, COUNT]} castShadow>
-        <icosahedronGeometry args={[2.8, 0]} />
-        <meshStandardMaterial roughness={0.9} flatShading />
-      </instancedMesh>
+      {meshes.map((mesh, k) => (
+        <instancedMesh
+          key={k}
+          ref={(r) => {
+            refs.current[k] = r;
+          }}
+          args={[mesh.geometry, mesh.material, places.length]}
+          castShadow={castShadow}
+          receiveShadow
+        />
+      ))}
     </>
   );
 }
+
+export function Vegetation() {
+  const scale = (ps: Placement[], k: number, sink = 0) => ps.map((p) => ({ ...p, s: p.s * k, y: p.y - sink }));
+  const oaks = useMemo(() => scale(scatter(260, 42, 10, 240), 5, 0.3), []);
+  const detailed = useMemo(() => scale(scatter(150, 43, 10, 200), 5, 0.3), []);
+  const pines = useMemo(() => scale(scatter(180, 77, 12, 260), 5.5, 0.3), []);
+  const pinesB = useMemo(() => scale(scatter(140, 78, 14, 260), 5, 0.3), []);
+  const bushes = useMemo(() => scale(scatter(220, 91, 7, 60), 3, 0.5), []);
+  const rocks = useMemo(() => scale(scatter(70, 133, 9, 120), 3.5, 0.6), []);
+  const grassTufts = useMemo(() => scale(scatter(600, 555, 5.5, 25), 2.5, 0.25), []);
+
+  return (
+    <>
+      <GLBInstances url="/models/tree_oak.glb" places={oaks} />
+      <GLBInstances url="/models/tree_detailed.glb" places={detailed} />
+      <GLBInstances url="/models/tree_pineTallA.glb" places={pines} />
+      <GLBInstances url="/models/tree_pineDefaultA.glb" places={pinesB} />
+      <GLBInstances url="/models/plant_bushLarge.glb" places={bushes} castShadow={false} />
+      <GLBInstances url="/models/rock_largeA.glb" places={rocks} />
+      <GLBInstances url="/models/grass_large.glb" places={grassTufts} castShadow={false} />
+    </>
+  );
+}
+
+useGLTF.preload("/models/tree_oak.glb");
+useGLTF.preload("/models/tree_detailed.glb");
+useGLTF.preload("/models/tree_pineTallA.glb");
+useGLTF.preload("/models/tree_pineDefaultA.glb");
+useGLTF.preload("/models/plant_bushLarge.glb");
+useGLTF.preload("/models/rock_largeA.glb");
+useGLTF.preload("/models/grass_large.glb");

@@ -130,6 +130,7 @@ export async function connectTrainer() {
   set({ trainer: { status: "connecting", name: device.name, control: false } });
   device.addEventListener("gattserverdisconnected", () => {
     controlPoint = null;
+    bleLog("trainer", "info", "disconnected");
     set({ trainer: { status: "disconnected", name: device.name, control: false }, power: 0, cadence: 0 });
   });
   try {
@@ -143,6 +144,9 @@ export async function connectTrainer() {
       );
       await data.startNotifications();
       const cp = await svc.getCharacteristic(FTMS_CP);
+      cp.addEventListener("characteristicvaluechanged", (e) =>
+        onCPResponse((e.target as BluetoothRemoteGATTCharacteristic).value!),
+      );
       await cp.startNotifications();
       controlPoint = cp;
       writeCP([0x00]); // request control
@@ -158,6 +162,7 @@ export async function connectTrainer() {
       );
       await ch.startNotifications();
     }
+    bleLog("trainer", "info", `connected to ${device.name ?? "trainer"} · ${control ? "FTMS control" : "power only (no resistance control)"}`);
     set({ trainer: { status: "connected", name: device.name, control } });
   } catch (e) {
     set({ trainer: { status: "disconnected", name: device.name, control: false } });
@@ -182,6 +187,7 @@ export async function connectHeartRate() {
       set({ heartRate: flags & 1 ? dv.getUint16(1, true) : dv.getUint8(1) });
     });
     await ch.startNotifications();
+    bleLog("hrm", "info", `connected to ${device.name ?? "heart rate"}`);
     set({ hrm: { status: "connected", name: device.name } });
   } catch (e) {
     set({ hrm: { status: "disconnected", name: device.name } });
@@ -203,6 +209,7 @@ function readVarint(bytes: Uint8Array, start: number): number | null {
 let prevMask = -1;
 function parseController(dv: DataView) {
   const bytes = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+  bleLog("controller", "in", hex(bytes));
   if (bytes.length < 3) return;
   // Zwift Ride button notification: opcode 0x23, protobuf field 1 (tag 0x08) = button bitmap.
   // Bits read 1 when released and 0 when pressed.
@@ -250,6 +257,7 @@ export async function connectController() {
     }
     const rx = await svc.getCharacteristic(ZW_RX);
     await rx.writeValue(new TextEncoder().encode("RideOn"));
+    bleLog("controller", "out", `handshake "RideOn" sent to ${device.name ?? "controller"}`);
     prevMask = -1;
     set((s) => ({ controller: { ...s.controller, status: "connected", name: device.name } }));
   } catch (e) {

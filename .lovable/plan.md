@@ -27,6 +27,16 @@ src/sim/
 
 Later (not in this plan): Lovable Cloud backend, a server route running the same `step.ts` authoritatively, presence/rooms, anti-cheat. Because `step.ts` is pure and dependency-free, it runs unchanged on the server.
 
+## Lessons from the big engines (compared before designing)
+
+Reviewed Unreal 5, Unity, Godot 4, CryEngine, and custom engines (Zwift itself runs a custom C++ engine). What we deliberately borrow:
+
+- **UE5 World Partition / CryEngine terrain streaming** → chunked world tiles; only tiles near the rider mount.
+- **Unity DOTS/ECS** → data-oriented sim: plain serializable state, zero allocation in the hot loop.
+- **id Tech / networked-game standard** → fixed 30 Hz sim tick decoupled from render, with snapshot interpolation.
+- **Zwift's own example** → their engine is custom because the hard problems are physics + netcode, not graphics; we invest in the sim core, not in photoreal rendering.
+- **Deliberately skipped:** C++ engine, Nanite/Lumen-class rendering, photorealism — wrong tool for a browser app whose differentiator is Bluetooth trainer integration.
+
 ## Performance budget (enforced, not aspirational)
 
 | Metric | Budget | How enforced |

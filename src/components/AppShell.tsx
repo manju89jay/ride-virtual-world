@@ -5,6 +5,7 @@ import { Bike } from "lucide-react";
 const nav = [
   { to: "/", label: "Home" },
   { to: "/pair", label: "Devices" },
+  { to: "/diagnostics", label: "Test" },
   { to: "/workouts", label: "Workouts" },
   { to: "/history", label: "History" },
   { to: "/settings", label: "Settings" },

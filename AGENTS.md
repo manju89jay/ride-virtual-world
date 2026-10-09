@@ -14,3 +14,5 @@
 - Ride physics runs inside the R3F frame loop (src/components/world/SimLoop.tsx) on a mutable `sim` object; the HUD reads throttled snapshots from `useRide` to avoid per-frame React renders.
 - The course is a procedural closed loop (src/lib/course.ts); terrain, road, trees and the elevation profile all derive from it so they stay consistent.
 - Personal-use app: settings and rides persist in localStorage, no backend.
+- Rider physics lives in src/sim/physics.ts as pure functions (no React/three/BLE imports) stepped at a fixed 30 Hz tick from SimLoop, with rendering interpolated between ticks — keeps physics deterministic and portable to a future multiplayer server.
+- All Bluetooth traffic is mirrored into src/lib/bleLog.ts so the hardware test page can show and export it for remote debugging.

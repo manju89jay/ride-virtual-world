@@ -1,87 +1,64 @@
-# Hedgerow v2 — Desktop App, Multiplayer-Ready Architecture, Hardware-Validated
+# Hedgerow Native — C++ Cycling Engine (Windows / macOS / Linux)
 
-Goal: evolve the working solo app into a **cross-platform desktop app** (Windows/Mac/Linux via Electron) with a polished stylized world, architected so multiplayer can be added later without rewriting gameplay. Plan-first from here on.
+A native desktop cycling app in C++, single rider first, built so multiplayer and new routes can be added later. Connects directly to your Zwift Ride (trainer + controllers) and keeps power and resistance in sync.
 
-## Platform: Electron desktop shell
+## What I can and cannot do here (stated up front)
 
-- Electron wrapper (Chromium inside → Web Bluetooth keeps working; same tech as VS Code/Discord). Real installers per OS; the Lovable preview remains a browser tab for fast iteration.
-- `electron/main.cjs` main process, `base: './'` in Vite config, `@electron/packager` for builds. Offline-capable: localStorage persistence, no CDN dependencies at runtime.
-- Desktop extras: fullscreen/windowed mode, native menu, auto-reconnect to last paired devices on launch.
+- **Can:** design the architecture, write all the C++ source, build files and tests, and compile + unit-test the engine-independent parts (physics, Bluetooth message parsing, workouts) inside this environment. Delivered as a downloadable source package.
+- **Cannot:** run the 3D game window, an Unreal editor, or real Bluetooth here. You build and run it on your PC (Visual Studio on Windows, Xcode on Mac, or CMake on Linux), and we iterate on what you see.
+- The existing web version stays untouched as a reference prototype.
 
-## Core architectural decision: deterministic simulation core
+## Stack decision (recommended — approve or change)
+
+| Layer | Choice | Why |
+|---|---|---|
+| Language | C++20 | Native performance, same as Zwift and major engines |
+| Rendering / world | **Unreal Engine 5** (C++ project) | Realistic worlds, World Partition streaming for long routes, built-in networking for later multiplayer, free for personal use |
+| Bluetooth | **SimpleBLE** (C++ library) | One API for Windows, macOS and Linux Bluetooth LE |
+| Build | CMake (core) + Unreal build tool (game) | Core library builds and tests anywhere |
+| Tests | doctest | Lightweight, header-only |
+
+Alternative if Unreal feels too heavy (≈100 GB install): **Godot 4 with C++ (GDExtension)** — lighter and open source, less realistic out of the box. The core library below works with either.
+
+## Architecture
 
 ```text
-src/sim/
-  types.ts      — RiderState, SimInputs, SimSnapshot (plain serializable data)
-  step.ts       — step(state, inputs, dt) → new state. Pure, deterministic, no
-                  imports from three.js, React, BLE, or the DOM.
-  constants.ts  — physics constants (mass, CRR, CdA, gear table)
+hedgerow-native/
+  core/                    engine-independent C++ library (compiled + tested here)
+    sim/                   pure physics: step(state, inputs, dt), 30 Hz fixed tick
+    devices/               FTMS trainer, Heart Rate, Zwift Ride controller protocols
+    workouts/              workout definitions, ERG target timing
+    course/                routes as versioned data files (one route now, more later)
+    net/                   snapshot types + interpolation buffer (multiplayer seam)
+    tests/                 unit tests for all of the above
+  game/                    Unreal Engine 5 project
+    Source/Hedgerow/       C++ game module: links core, drives rider pawn, HUD, camera
+    Content/               world, road, terrain, rider model
+  docs/                    architecture, hardware test checklist, multiplayer design
 ```
 
-- **Fixed timestep:** 30 Hz sim tick regardless of frame rate; rendering interpolates between snapshots. Same visuals on any machine — and 30 Hz is the tick a future server would run.
-- **Snapshots:** plain-data per tick. Your rider = "snapshot source: local sim"; future remote riders = "snapshot source: network". Renderer can't tell the difference — the entire multiplayer trick, designed in now.
-- **Inputs, not mutation:** keyboard/controller/BLE power become an `inputs` object per tick. Nothing else writes sim state.
+Key rules:
+- **Core never depends on the engine.** Physics and device code are plain C++ — testable, and the same code can run on a future multiplayer server.
+- **Fixed 30 Hz simulation**, rendering interpolates between snapshots — consistent on any PC, and the tick rate a server would use.
+- **Your rider is just one entry in a rider list** fed by snapshots; remote riders later arrive through the same path.
 
-## Lessons from the big engines (compared before designing)
+## Zwift Ride sync (the main point)
 
-Reviewed Unreal 5, Unity, Godot 4, CryEngine, and custom engines (Zwift runs a custom C++ engine). Deliberately borrowed:
+- **Trainer (Zwift Hub inside the Ride):** open Bluetooth fitness standard (FTMS). Read power, cadence, speed ~4×/s; send road gradient (scaled by virtual gear) for hills, or target watts for ERG workouts.
+- **Controllers (shift/steer buttons):** Zwift's proprietary protocol, known from community reverse-engineering ("RideOn" handshake, button bitmask messages). Implemented best-effort; keyboard shifting as guaranteed fallback.
+- **Power sync loop:** your watts → speed in the world → road gradient → trainer resistance, every tick.
 
-- **UE5 World Partition / CryEngine streaming** → chunked world tiles; only tiles near the rider mount.
-- **Unity DOTS/ECS** → data-oriented sim: plain serializable state, zero allocation in the hot loop.
-- **id Tech / networked-game standard** → fixed 30 Hz tick decoupled from render, snapshot interpolation.
-- **Zwift's own example** → their engine is custom because the hard problems are physics + netcode, not graphics; we invest in the sim core, not photoreal rendering.
-- **Skipped:** C++ engine, Nanite/Lumen-class rendering, photorealism — wrong tool for an app whose differentiator is trainer integration.
+## Hardware testing (part of the build)
 
-## Multiplayer-ready seams (built now, wired later)
+- Built-in **diagnostics screen**: raw live data per device, every command sent and acknowledged, controller button IDs, connection log, and a "ramp resistance" test.
+- A ~10-minute **checklist** you run with your Ride; you send me the diagnostics log, I fix what it shows.
 
-1. **Snapshot interpolation buffer** — renderer keeps ~1 s of snapshots per rider, renders ~100 ms in the past. Solo today; exactly what remote-rider smoothing needs later.
-2. **Rider registry** — world renders `Map<riderId, RiderAvatar>` from snapshots. Solo = a map of one.
-3. **Course as versioned data** — course ID + hash so a future server can verify all riders are on the same world; also the foundation for adding new routes later (route = data, not code).
-4. **Clock discipline** — gameplay time from the sim tick counter, never `Date.now()`.
+## Milestones
 
-## Hardware validation (built into the build)
+1. **Core library** — physics, FTMS/HR/controller protocols, workouts, one route, tests. Compiled and tested here. Delivered as a source package.
+2. **Hardware validation** — small command-line tool using the core to pair your Ride and print live power, cadence and buttons. You run it; we fix issues before any 3D work.
+3. **Unreal game** — world, road, rider, chase camera, HUD, workouts, ride history, diagnostics screen.
+4. **Visual pass** — realistic countryside, lighting, scenery.
+5. **Multiplayer design doc** — reviewed with you before any server work.
 
-I have no Bluetooth hardware in the sandbox, so validation is a designed loop: the app ships with a **diagnostics screen** and you run it with your Ride.
-
-- **Diagnostics page:** live raw readouts per device (trainer power/cadence/speed, last command sent + acknowledgement, controller button events with bit IDs), connection log, and a "test resistance" button that ramps grade so you can feel the trainer respond.
-- **Validation checklist** (you run it, ~10 min): trainer pairs → power flows → grade command changes resistance → ERG holds target watts → controller buttons register → shifting changes resistance.
-- Known risk, stated plainly: the Zwift controller protocol is community-reverse-engineered; if it misbehaves, the diagnostics show exactly which bytes arrive and I fix the parser. Keyboard/on-screen shifting is the guaranteed fallback.
-
-## Performance budget (enforced, not aspirational)
-
-| Metric | Budget | How enforced |
-|---|---|---|
-| Draw calls | < 100 | instancing for all repeated props; scene audit in verification |
-| Triangles | < 150 K | LOD tiers on trees/props; terrain chunk resolution tiers |
-| Sim cost | < 1 ms/tick | pure math, no allocation in the hot loop |
-| Shadow map | 2048, single cascade | follows rider |
-| Post-processing | ≤ 1 pass | color grade only, if any |
-
-## Visual upgrade: polished stylized countryside
-
-Warm, painterly-realistic countryside (Cotswolds morning), not photoreal, not neon:
-
-1. **Real models where they matter:** CC0 low-poly cyclist + bike (replacing the procedural stick rider), tree/hedgerow/fence kits (Kenney/Quaternius/poly.pizza), validated on disk before wiring.
-2. **Terrain & road:** heightmap terrain with blended grass/dirt, road with edge wear and center line, distant hills as low-LOD ring.
-3. **Lighting & atmosphere:** warm key sun, soft fog, Lightformer environment, gentle color grade; fix the floating-tree artifact via proper terrain height sampling.
-4. **Life:** shader wind in trees, drifting clouds, gates/signs — cheap ambient motion that sells realism.
-
-## Reliability
-
-- Sim core unit tests (physics invariants: stopping, climbing speeds, workout target timing) — pure code, easy and high-value.
-- BLE layer unchanged (already isolated); sim consumes its output as inputs.
-- Verification per milestone: typecheck + browser screenshot + console-clean check.
-
-## Milestones (each separately verifiable)
-
-1. **Sim extraction + Electron shell** — pure `step.ts`, fixed timestep, input abstraction, rider registry, interpolation buffer; Electron wrapper builds and launches. Gameplay identical to today; tests pass.
-2. **Diagnostics + hardware validation** — diagnostics page; you run the checklist with your Ride; I fix what it reveals.
-3. **World chunking + LOD + budgets** — tiled terrain/props, instancing audit, draw-call measurement.
-4. **Visual pass** — CC0 rider/bike + vegetation, textures, lighting/grade, floating-tree fix.
-5. **Multiplayer design doc** — protocol/authority design (rooms, snapshot rate, reconciliation) reviewed with you before any backend work.
-
-Out of scope (unchanged): actual multiplayer, Strava upload, multiple worlds, running.
-
-## Process agreement
-
-Plan-first, always: significant work starts with a plan for your approval; small fixes and polish are done directly and reported.
+Out of scope for now: actual multiplayer, Strava upload, multiple worlds.

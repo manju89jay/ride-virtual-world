@@ -141,7 +141,7 @@ function scatter(count: number, seed: number, minOff: number, maxOff: number, ma
     const z = c.z[i]! + (dx / l) * off * side;
     const { h, d } = terrainHeight(x, z);
     if (d < minOff - 2) continue;
-    out.push({ x, y: h, z, s: 0.8 + rnd() * 0.9, rot: rnd() * Math.PI * 2 });
+    out.push({ x, y: h - 0.15, z, s: 0.8 + rnd() * 0.9, rot: rnd() * Math.PI * 2 });
   }
   return out;
 }
@@ -193,13 +193,14 @@ function GLBInstances({ url, places, castShadow = true }: { url: string; places:
 }
 
 export function Vegetation() {
-  const oaks = useMemo(() => scatter(220, 42, 14, 240), []);
-  const detailed = useMemo(() => scatter(120, 43, 14, 200), []);
-  const pines = useMemo(() => scatter(160, 77, 16, 260), []);
-  const pinesB = useMemo(() => scatter(120, 78, 18, 260), []);
-  const bushes = useMemo(() => scatter(180, 91, 8, 60), []);
-  const rocks = useMemo(() => scatter(60, 133, 10, 120), []);
-  const grassTufts = useMemo(() => scatter(400, 555, 6, 25), []);
+  const scale = (ps: Placement[], k: number) => ps.map((p) => ({ ...p, s: p.s * k }));
+  const oaks = useMemo(() => scale(scatter(220, 42, 14, 240), 5), []);
+  const detailed = useMemo(() => scale(scatter(120, 43, 14, 200), 5), []);
+  const pines = useMemo(() => scale(scatter(160, 77, 16, 260), 5.5), []);
+  const pinesB = useMemo(() => scale(scatter(120, 78, 18, 260), 5), []);
+  const bushes = useMemo(() => scale(scatter(180, 91, 8, 60), 3), []);
+  const rocks = useMemo(() => scale(scatter(60, 133, 10, 120), 3.5), []);
+  const grassTufts = useMemo(() => scale(scatter(400, 555, 6, 25), 2.5), []);
 
   return (
     <>

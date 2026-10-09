@@ -6,12 +6,9 @@ import { sim } from "@/lib/session";
 import { useDevices, useRide, useSettings } from "@/lib/store";
 import { setSimGrade, setTargetPower, trainerHasControl } from "@/lib/ble";
 import { targetAt } from "@/lib/workouts";
+import { stepRider, trainerGrade, TICK } from "@/sim/physics";
 import { Rider } from "./Rider";
 
-const G = 9.81;
-const CRR = 0.004;
-const CDA = 0.32;
-const RHO = 1.225;
 const LANE = 1.8;
 
 const tmpPos = new THREE.Vector3();
@@ -23,65 +20,73 @@ export function SimLoop() {
   const camera = useThree((s) => s.camera);
   const camInit = useRef(false);
 
-  useFrame((_, raw) => {
-    const dt = Math.min(raw, 0.05);
+  const acc = useRef(0);
+  const prevS = useRef(0);
+  const last = useRef({ power: 0, target: null as number | null, wk: null as ReturnType<typeof targetAt> });
+
+  // One fixed simulation tick (30 Hz). Gameplay state changes only here.
+  const tick = () => {
     const dev = useDevices.getState();
     const st = useSettings.getState();
     const usingTrainer = !st.simMode && dev.trainer.status === "connected";
-
     const wk = sim.workout ? targetAt(sim.workout, sim.elapsed) : null;
     const target = wk ? wk.frac * st.ftp : null;
 
     let power = 0;
     let cadence = 0;
-    if (!sim.paused) {
-      if (usingTrainer) {
-        power = performance.now() - dev.lastPowerAt < 3000 ? dev.power : 0;
-        cadence = dev.cadence;
-      } else {
-        if (target !== null) sim.simPower += (target - sim.simPower) * (1 - Math.exp(-2 * dt));
-        power = sim.simPower;
-        cadence = power > 0 ? 88 : 0;
-      }
+    if (usingTrainer) {
+      power = performance.now() - dev.lastPowerAt < 3000 ? dev.power : 0;
+      cadence = dev.cadence;
+    } else {
+      if (target !== null) sim.simPower += (target - sim.simPower) * (1 - Math.exp(-2 * TICK));
+      power = sim.simPower;
+      cadence = power > 0 ? 88 : 0;
     }
 
     const here = sampleAt(sim.s);
-    const mass = st.weight + st.bikeWeight;
-    if (!sim.paused) {
-      const theta = Math.atan(here.grade);
-      const drive = Math.min(power / Math.max(sim.v, 0.5), 600);
-      const resist = mass * G * Math.sin(theta) + CRR * mass * G * Math.cos(theta) + 0.5 * RHO * CDA * sim.v * sim.v;
-      sim.v = Math.max(0, sim.v + ((drive - resist) / mass) * dt);
-      const ds = sim.v * dt;
-      sim.s += ds;
-      sim.dist += ds;
-      sim.elapsed += dt;
-      const h = sampleAt(sim.s).y;
-      if (sim.lastH && h > sim.lastH) sim.elevGain += h - sim.lastH;
-      sim.lastH = h;
-      sim.crank += (cadence / 60) * Math.PI * 2 * dt;
-      sim.wheel += (sim.v / 0.34) * dt;
+    prevS.current = sim.s;
+    const next = stepRider(sim, { power, cadence, grade: here.grade, mass: st.weight + st.bikeWeight }, TICK);
+    Object.assign(sim, next);
+    sim.elapsed += TICK;
+    const h = sampleAt(sim.s).y;
+    if (sim.lastH && h > sim.lastH) sim.elevGain += h - sim.lastH;
+    sim.lastH = h;
 
-      sim.secAcc += dt;
-      if (sim.secAcc >= 1) {
-        sim.secAcc -= 1;
-        const hr = dev.heartRate;
-        sim.samples.p.push(Math.round(power));
-        sim.samples.h.push(hr);
-        sim.samples.c.push(Math.round(cadence));
-        sim.samples.v.push(+(sim.v * 3.6).toFixed(1));
-        sim.samples.e.push(+h.toFixed(1));
-        sim.powerHist.push(power);
-        if (sim.powerHist.length > 3) sim.powerHist.shift();
-        if (usingTrainer && trainerHasControl()) {
-          if (target !== null) setTargetPower(target);
-          else setSimGrade(here.grade * 100 * st.difficulty + (sim.gear - 12) * 0.6);
-        }
+    sim.secAcc += TICK;
+    if (sim.secAcc >= 1 - 1e-9) {
+      sim.secAcc -= 1;
+      sim.samples.p.push(Math.round(power));
+      sim.samples.h.push(dev.heartRate);
+      sim.samples.c.push(Math.round(cadence));
+      sim.samples.v.push(+(sim.v * 3.6).toFixed(1));
+      sim.samples.e.push(+h.toFixed(1));
+      sim.powerHist.push(power);
+      if (sim.powerHist.length > 3) sim.powerHist.shift();
+      if (usingTrainer && trainerHasControl()) {
+        if (target !== null) setTargetPower(target);
+        else setSimGrade(trainerGrade(here.grade, st.difficulty, sim.gear));
       }
     }
+    last.current = { power, target, wk };
+  };
 
-    // Rider + camera
-    const p = sampleAt(sim.s);
+  useFrame((_, raw) => {
+    const dt = Math.min(raw, 0.25);
+    if (!sim.paused) {
+      acc.current += dt;
+      while (acc.current >= TICK) {
+        tick();
+        acc.current -= TICK;
+      }
+    } else {
+      prevS.current = sim.s;
+    }
+    const { power, target, wk } = last.current;
+    const here = sampleAt(sim.s);
+
+    // Rider + camera: render interpolated between the last two ticks
+    const alpha = acc.current / TICK;
+    const p = sampleAt(prevS.current + (sim.s - prevS.current) * alpha);
     const nx = -p.tz;
     const nz = p.tx;
     tmpPos.set(p.x - nx * LANE, p.y + 0.06, p.z - nz * LANE);

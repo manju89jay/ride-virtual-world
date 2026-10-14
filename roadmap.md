@@ -14,3 +14,5 @@
 
 ## Blocked on user
 - [ ] Real Bluetooth test with Zwift Ride (needs user's hardware)
+
+- [ ] External virtual KICKR Core simulator (separate program, like a virtual ECU) to test the app without hardware

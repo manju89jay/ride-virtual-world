@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Virtual KICKR Core</title>
+<style>
+  :root { --bg:#14171a; --card:#1d2227; --fg:#eef1f3; --mute:#8b96a0; --ok:#3fb950; --warn:#e3a008; --bad:#f85149; --acc:#2f81f7; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 14px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--fg); padding:20px; }
+  h1 { margin:0 0 4px; font-size:22px; letter-spacing:.04em; text-transform:uppercase; }
+  .sub { color:var(--mute); margin-bottom:16px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(300px,1fr)); gap:14px; }
+  .card { background:var(--card); border-radius:12px; padding:16px; }
+  .card h2 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.1em; color:var(--mute); }
+  .stats { display:grid; grid-template-columns: repeat(3,1fr); gap:10px; }
+  .k { font-size:11px; color:var(--mute); text-transform:uppercase; letter-spacing:.08em; }
+  .v { font-size:26px; font-weight:700; font-variant-numeric: tabular-nums; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--mute); margin-right:6px; }
+  .on { background:var(--ok); } .warn { background:var(--warn); }
+  label { display:block; margin:10px 0 2px; }
+  input[type=range] { width:100%; }
+  button { background:#2a3139; color:var(--fg); border:1px solid #39424c; border-radius:8px; padding:7px 12px; cursor:pointer; margin:4px 4px 0 0; }
+  button:hover { border-color:var(--acc); }
+  #log { height:300px; overflow:auto; font:12px ui-monospace, monospace; background:#0f1215; border-radius:8px; padding:10px; white-space:pre-wrap; }
+  .in { color:#79c0ff; } .out { color:#7ee787; } .info { color:var(--mute); }
+  table { width:100%; border-collapse:collapse; } td { padding:3px 0; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<h1>Virtual KICKR Core</h1>
+<div class="sub">Simulated Wahoo KICKR Core for testing Hedgerow without hardware. <span id="conn"><span class="dot"></span>waiting for app</span></div>
+<div class="grid">
+  <div class="card">
+    <h2>Trainer display</h2>
+    <div class="stats">
+      <div><div class="k">Mode</div><div class="v" id="mode">–</div></div>
+      <div><div class="k">Power</div><div class="v" id="power">–</div></div>
+      <div><div class="k">Commanded</div><div class="v" id="cmd">–</div></div>
+      <div><div class="k">Grade</div><div class="v" id="grade">–</div></div>
+      <div><div class="k">Cadence</div><div class="v" id="cad">–</div></div>
+      <div><div class="k">Speed</div><div class="v" id="spd">–</div></div>
+    </div>
+    <div id="spiral" style="margin-top:8px;color:var(--warn)"></div>
+  </div>
+  <div class="card">
+    <h2>Simulated rider</h2>
+    <label>Cadence <b id="cadv">85</b> rpm</label>
+    <input id="cadence" type="range" min="0" max="120" value="85" />
+    <label>Max effort <b id="mwv">400</b> W</label>
+    <input id="maxw" type="range" min="100" max="1200" step="10" value="400" />
+    <h2 style="margin-top:16px">Fault injection</h2>
+    <button data-f="drop">Drop connection</button>
+    <button data-f="reject">Reject next command</button>
+    <button data-f="slowack" id="slow">Slow acks: off</button>
+  </div>
+  <div class="card">
+    <h2>Virtual peloton</h2>
+    <label>Bot riders <b id="nbv">0</b></label>
+    <input id="nbots" type="range" min="0" max="10" value="0" />
+    <table id="bots"></table>
+  </div>
+</div>
+<div class="card" style="margin-top:14px">
+  <h2>Byte log (simulator side) — <a href="/log" style="color:var(--acc)">download</a></h2>
+  <div id="log"></div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let ws;
+  const send = (m) => ws && ws.readyState === 1 && ws.send(JSON.stringify(m));
+  function addLog(e) {
+    const d = document.createElement("div");
+    d.className = e.dir;
+    d.textContent = `${new Date(e.t).toLocaleTimeString()} ${e.dir === "in" ? "←" : e.dir === "out" ? "→" : "·"} ${e.msg}`;
+    $("log").prepend(d);
+    while ($("log").childNodes.length > 400) $("log").lastChild.remove();
+  }
+  function connect() {
+    ws = new WebSocket(`ws://${location.host}/panel`);
+    ws.onmessage = (ev) => {
+      const m = JSON.parse(ev.data);
+      if (m.t === "hello") m.log.forEach(addLog);
+      if (m.t === "log") addLog(m.e);
+      if (m.t === "state") render(m.s);
+    };
+    ws.onclose = () => setTimeout(connect, 1000);
+  }
+  let synced = false;
+  function render(s) {
+    $("conn").innerHTML = `<span class="dot ${s.connected ? (s.hasControl || s.unlocked ? "on" : "warn") : ""}"></span>` +
+      (s.connected ? (s.hasControl || s.unlocked ? "app connected · in control" : "app connected · no control yet") : "waiting for app");
+    $("mode").textContent = s.mode.toUpperCase();
+    $("power").textContent = s.power + " W";
+    $("cmd").textContent = s.mode === "erg" ? s.ergTarget + " W" : s.mode === "grade" ? s.gradeTarget.toFixed(1) + " %" : s.mode === "level" ? "L" + s.level : "–";
+    $("grade").textContent = s.grade.toFixed(1) + " %";
+    $("cad").textContent = s.cadence;
+    $("spd").textContent = s.speedKmh;
+    $("spiral").textContent = s.spiral ? "ERG spiral: cadence too low to hold target" : "";
+    $("slow").textContent = "Slow acks: " + (s.faults.slowAck ? "on" : "off");
+    $("bots").innerHTML = s.bots.map((b) => `<tr><td>${b.name}</td><td>${b.power} W</td><td>${b.kmh} km/h</td></tr>`).join("");
+    if (!synced) {
+      synced = true;
+      $("cadence").value = s.rider.cadence; $("cadv").textContent = s.rider.cadence;
+      $("maxw").value = s.rider.maxWatts; $("mwv").textContent = s.rider.maxWatts;
+      $("nbots").value = s.bots.length; $("nbv").textContent = s.bots.length;
+    }
+  }
+  $("cadence").oninput = (e) => { $("cadv").textContent = e.target.value; send({ t: "rider", cadence: +e.target.value }); };
+  $("maxw").oninput = (e) => { $("mwv").textContent = e.target.value; send({ t: "rider", maxWatts: +e.target.value }); };
+  $("nbots").onchange = (e) => { $("nbv").textContent = e.target.value; send({ t: "bots", n: +e.target.value }); };
+  document.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => send({ t: "fault", kind: b.dataset.f })));
+  connect();
+</script>
+</body>
+</html>

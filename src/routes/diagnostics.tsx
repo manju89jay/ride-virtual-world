@@ -4,7 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { useDevices } from "@/lib/store";
 import { useBleLog, bleLog } from "@/lib/bleLog";
-import { setSimGrade, setTargetPower, trainerHasControl } from "@/lib/ble";
+import { connectVirtualTrainer, setSimGrade, setTargetPower, trainerHasControl } from "@/lib/ble";
 
 export const Route = createFileRoute("/diagnostics")({
   head: () => ({
@@ -55,11 +55,37 @@ function Diagnostics() {
         stop();
         return;
       }
-      bleLog("app", "info", `${name}: step ${i + 1}/${steps.length} → ${steps[i]}${unit}`);
-      send(steps[i++]!);
+      const v = steps[i]!;
+      bleLog("app", "info", `${name}: step ${i + 1}/${steps.length} → ${v}${unit}`);
+      send(v);
+      i++;
+      if (unit.trim() === "W") watchSettle(v);
     };
     go();
     timer.current = window.setInterval(go, 10000);
+  };
+
+  // Measure how long the trainer takes to hold a new ERG target within ±5 W.
+  const watchSettle = (target: number) => {
+    const t0 = performance.now();
+    const unsub = useDevices.subscribe((s) => {
+      const dt = performance.now() - t0;
+      if (Math.abs(s.power - target) <= 5) {
+        bleLog("app", "info", `ERG ${target} W settled in ${(dt / 1000).toFixed(1)} s`);
+        unsub();
+      } else if (dt > 9000) {
+        bleLog("app", "info", `ERG ${target} W did not settle within 9 s (at ${s.power} W)`);
+        unsub();
+      }
+    });
+  };
+
+  const connectVirtual = async () => {
+    try {
+      await connectVirtualTrainer();
+    } catch (e) {
+      bleLog("app", "info", e instanceof Error ? e.message : String(e));
+    }
   };
 
   const download = () => {
@@ -71,7 +97,7 @@ function Diagnostics() {
   };
 
   const live = [
-    ["Trainer", d.trainer.status + (d.trainer.control ? " · control" : "")],
+    ["Trainer", d.trainer.status + (d.trainer.control ? " · control" : "") + (d.trainer.virtual ? " · virtual" : "")],
     ["Power", `${d.power} W`],
     ["Cadence", `${Math.round(d.cadence)} rpm`],
     ["Speed", `${d.trainerSpeed.toFixed(1)} km/h`],
@@ -101,6 +127,7 @@ function Diagnostics() {
             <Button disabled={!!running} onClick={() => runSteps("Grade ramp", [0, 2, 4, 6, 8, 10, 0], setSimGrade, "%")}>Grade ramp 0→10%</Button>
             <Button disabled={!!running} variant="secondary" onClick={() => runSteps("ERG test", [100, 150, 200, 250, 100], setTargetPower, " W")}>ERG test 100→250 W</Button>
             {running && <Button variant="outline" onClick={stop}>Stop {running}</Button>}
+            {d.trainer.status !== "connected" && <Button variant="outline" onClick={connectVirtual}>Connect virtual trainer</Button>}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">Each step lasts 10 seconds.</p>
         </section>

@@ -4,6 +4,7 @@ import { Environment, Lightformer, Sky } from "@react-three/drei";
 import * as THREE from "three";
 import { Road, Terrain, Vegetation } from "./Landscape";
 import { SimLoop } from "./SimLoop";
+import { Peloton } from "./Peloton";
 
 export function World() {
   return (
@@ -42,6 +43,7 @@ export function World() {
         <Vegetation />
       </Suspense>
       <SimLoop />
+      <Peloton />
     </Canvas>
   );
 }

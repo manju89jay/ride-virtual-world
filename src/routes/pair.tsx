@@ -4,7 +4,7 @@ import { Bluetooth, Gamepad2, Heart, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
-import { bleSupported, connectController, connectHeartRate, connectTrainer, controllerListeners } from "@/lib/ble";
+import { bleSupported, connectController, connectHeartRate, connectTrainer, connectVirtualTrainer, controllerListeners } from "@/lib/ble";
 import { useDevices, useSettings, type Status } from "@/lib/store";
 
 export const Route = createFileRoute("/pair")({
@@ -69,7 +69,11 @@ function Pair() {
         <div className={card}>
           <div className="flex items-center gap-2 font-display text-2xl font-bold uppercase"><Zap className="h-5 w-5 text-primary" /> Trainer</div>
           <p className="mt-1 text-sm text-muted-foreground">Zwift Ride / Hub, or any smart trainer.</p>
-          <div className="mt-4 flex items-center gap-2 text-sm font-semibold"><Dot status={d.trainer.status} /> {d.trainer.name ?? d.trainer.status}</div>
+          <div className="mt-4 flex items-center gap-2 text-sm font-semibold"><Dot status={d.trainer.status} /> {d.trainer.name ?? d.trainer.status}
+            {d.trainer.virtual && <span className="rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary-foreground">Virtual</span>}
+            {d.trainer.status === "connected" && d.trainer.protocol && <span className="text-xs text-muted-foreground">· {d.trainer.protocol}</span>}
+          </div>
+          {d.trainer.error && d.trainer.status !== "connected" && <p className="mt-2 text-xs text-destructive">{d.trainer.error}</p>}
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
             <Read label="Power" v={`${d.power} W`} />
             <Read label="Cadence" v={`${Math.round(d.cadence)}`} />
@@ -81,6 +85,10 @@ function Pair() {
           <Button className="mt-4 w-full" disabled={!supported} onClick={() => attempt(connectTrainer)}>
             <Bluetooth className="h-4 w-4" /> Pair trainer
           </Button>
+          <Button className="mt-2 w-full" variant="outline" onClick={() => attempt(() => connectVirtualTrainer())}>
+            Connect virtual trainer
+          </Button>
+          <p className="mt-1 text-[11px] text-muted-foreground">Virtual KICKR Core for testing without hardware — start it first (see README).</p>
         </div>
 
         <div className={card}>

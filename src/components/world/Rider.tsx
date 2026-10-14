@@ -40,17 +40,20 @@ function Tube({ a, b, r = 0.022, color = "#f4efe4" }: { a: [number, number, numb
   );
 }
 
-export const Rider = forwardRef<THREE.Group>(function Rider(_, ref) {
+export type RiderMotion = { crank: number; wheel: number };
+
+export const Rider = forwardRef<THREE.Group, { color?: string; motion?: RiderMotion }>(function Rider({ color = JERSEY, motion }, ref) {
   const front = useRef<THREE.Group>(null);
   const back = useRef<THREE.Group>(null);
   const legL = useRef<THREE.Group>(null);
   const legR = useRef<THREE.Group>(null);
 
   useFrame(() => {
-    if (front.current) front.current.rotation.x = sim.wheel;
-    if (back.current) back.current.rotation.x = sim.wheel;
-    if (legL.current) legL.current.rotation.x = Math.sin(sim.crank) * 0.55 - 0.2;
-    if (legR.current) legR.current.rotation.x = Math.sin(sim.crank + Math.PI) * 0.55 - 0.2;
+    const m = motion ?? sim;
+    if (front.current) front.current.rotation.x = m.wheel;
+    if (back.current) back.current.rotation.x = m.wheel;
+    if (legL.current) legL.current.rotation.x = Math.sin(m.crank) * 0.55 - 0.2;
+    if (legR.current) legR.current.rotation.x = Math.sin(m.crank + Math.PI) * 0.55 - 0.2;
   });
 
   // local +Z is forward
@@ -58,10 +61,10 @@ export const Rider = forwardRef<THREE.Group>(function Rider(_, ref) {
     <group ref={ref}>
       <Wheel z={0.5} wheelRef={front} />
       <Wheel z={-0.5} wheelRef={back} />
-      <Tube a={[0, 0.34, -0.5]} b={[0, 0.38, -0.05]} color={JERSEY} />
-      <Tube a={[0, 0.38, -0.05]} b={[0, 0.85, -0.18]} color={JERSEY} />
-      <Tube a={[0, 0.85, -0.18]} b={[0, 0.92, 0.38]} color={JERSEY} />
-      <Tube a={[0, 0.38, -0.05]} b={[0, 0.9, 0.38]} r={0.028} color={JERSEY} />
+      <Tube a={[0, 0.34, -0.5]} b={[0, 0.38, -0.05]} color={color} />
+      <Tube a={[0, 0.38, -0.05]} b={[0, 0.85, -0.18]} color={color} />
+      <Tube a={[0, 0.85, -0.18]} b={[0, 0.92, 0.38]} color={color} />
+      <Tube a={[0, 0.38, -0.05]} b={[0, 0.9, 0.38]} r={0.028} color={color} />
       <Tube a={[0, 0.34, 0.5]} b={[0, 0.98, 0.4]} />
       <Tube a={[-0.2, 1.0, 0.43]} b={[0.2, 1.0, 0.43]} r={0.016} color="#222" />
       {/* saddle */}
@@ -85,7 +88,7 @@ export const Rider = forwardRef<THREE.Group>(function Rider(_, ref) {
       {/* torso */}
       <mesh position={[0, 1.15, 0.05]} rotation-x={1.05} castShadow>
         <capsuleGeometry args={[0.16, 0.42, 6, 12]} />
-        <meshStandardMaterial color={JERSEY} roughness={0.7} />
+        <meshStandardMaterial color={color} roughness={0.7} />
       </mesh>
       {/* arms */}
       {[-0.17, 0.17].map((x) => (

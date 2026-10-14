@@ -14,6 +14,7 @@
 
 ## Blocked on user
 - [ ] Real Bluetooth test with Zwift Ride (needs user's hardware)
+- [ ] Real KICKR Core test: run Test page, send log (needs user's hardware)
 
-- [ ] External virtual KICKR Core simulator (separate program, like a virtual ECU) to test the app without hardware
-- [ ] Virtual peloton: bot riders driven by simulated trainers, shown in the world via the rider snapshot path
+- [x] External virtual KICKR Core simulator (separate program, like a virtual ECU) to test the app without hardware
+- [x] Virtual peloton: bot riders driven by simulated trainers, shown in the world via the rider snapshot path

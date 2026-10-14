@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { World } from "@/components/world/World";
 import { RideHUD } from "@/components/RideHUD";
+import { PelotonList } from "@/components/PelotonList";
 import { resetSim } from "@/lib/session";
 import { getWorkout } from "@/lib/workouts";
 
@@ -32,6 +33,7 @@ function RidePage() {
     <div className="fixed inset-0 bg-background">
       <World />
       <RideHUD />
+      <PelotonList />
     </div>
   );
 }

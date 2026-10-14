@@ -17,3 +17,5 @@
 - Rider physics lives in src/sim/physics.ts as pure functions (no React/three/BLE imports) stepped at a fixed 30 Hz tick from SimLoop, with rendering interpolated between ticks — keeps physics deterministic and portable to a future multiplayer server.
 - All Bluetooth traffic is mirrored into src/lib/bleLog.ts so the hardware test page can show and export it for remote debugging.
 - Desktop app: electron/main.cjs runs the built server bundle (dist/server/index.mjs) on a local 127.0.0.1 port and serves dist/client statically, so the full app works offline in a native window; it also handles Electron's select-bluetooth-device prompt. Build with scripts/package-desktop.sh (Electron tooling installed in a temp dir, not in package.json).
+- tools/kickr-sim is a standalone Node virtual trainer (no app imports) bridged over a WebSocket carrying raw GATT bytes; src/lib/virtualTrainer.ts wraps it as a Web-Bluetooth-shaped device so ble.ts uses one code path for real and virtual hardware.
+- Other riders (bots now, multiplayer later) arrive as snapshots in src/lib/riders.ts and render via world/Peloton.tsx — never add a separate path for remote riders.

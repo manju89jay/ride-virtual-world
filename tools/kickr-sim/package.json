@@ -1,0 +1,17 @@
+{
+  "name": "kickr-sim",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Virtual Wahoo KICKR Core (virtual ECU) for testing Hedgerow without hardware",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test test/sim.test.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

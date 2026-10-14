@@ -123,3 +123,22 @@ is no server to lose.
   art.
 - macOS builds are unsigned: expect the right-click-to-open step, and a possible Gatekeeper
   warning on a fresh machine.
+
+## Testing without hardware: virtual Wahoo KICKR Core
+
+`tools/kickr-sim` is a separate program that acts like a KICKR Core (a "virtual ECU"). It speaks the trainer's real Bluetooth bytes (FTMS, Cycling Power, Wahoo control channel) over a local connection, models the flywheel, ERG lag, grade ramp and low-cadence ERG spiral, and can run a virtual peloton.
+
+1. Install Node.js 18 or newer.
+2. In a terminal: `cd tools/kickr-sim`, `npm install`, then `npm start -- --bots 5`.
+3. Open the control panel at http://127.0.0.1:8765. Set cadence and effort, inject faults (drop, reject, slow acks) and choose the number of bot riders.
+4. In Hedgerow, go to **Devices** or **Test** and click **Connect virtual trainer**. A "Virtual" badge marks it everywhere, so it can't be mistaken for your real trainer.
+5. The simulator writes its own byte log to `kickr-sim-log.txt`. Compare it with the app's downloaded log.
+
+Run the simulator's own tests with `npm test` in `tools/kickr-sim`.
+
+## Wahoo KICKR Core: real hardware
+
+1. Update the trainer's firmware in the Wahoo app, then **quit Zwift and the Wahoo app**. The trainer accepts only one app at a time.
+2. Go to **Devices** → **Pair trainer** → pick "KICKR CORE xxxx".
+3. The app connects over FTMS. On older firmware it falls back to Wahoo's own control channel. If the connection fails, the Devices page names the exact step that failed.
+4. On the **Test** page, run the grade ramp and the ERG test. The log shows each command, the trainer's answer with its response time, and how long ERG took to settle. Send me that log.

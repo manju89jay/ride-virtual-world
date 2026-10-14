@@ -40,3 +40,23 @@ Run the Test page against the real KICKR Core and send me the log. I compare its
 - The virtual device implements a minimal `BluetoothDevice`/GATT interface (`getPrimaryService`, `getCharacteristic`, `startNotifications`, `writeValueWithResponse`, `characteristicvaluechanged` events). This keeps `ble.ts` untouched apart from the adapter injection.
 - Simulator physics stays pure, stepping at 10 Hz. Notifications go out at 4 Hz, like the real unit.
 - Zwift Ride controller code is unchanged and still works alongside the KICKR.
+
+## How we prove the virtual trainer works and is connected
+
+Three independent checks. None of them trusts the app's own word.
+
+1. **Handshake proof:** the app shows "Connected" only after the full real sequence completes: the services are found, notifications start, *request control* is acknowledged with OK, and the first power reading arrives. If any step fails, the Devices page names the step that failed.
+2. **Two-sided log:** the simulator keeps its own log of every byte it receives and sends. An automated check compares it against the app's Bluetooth log. Every command the app sent must appear on the simulator side with a matching acknowledgement and timing.
+3. **Closed-loop test (automated, runs here):** start the simulator, open the app in a headless browser, connect, then ride a scripted session. The test asserts that:
+   - the grade sent goes up on a climb
+   - the simulator's resistance follows it
+   - ERG power settles within ±5 W within 3 s
+   - a forced disconnect reconnects and re-sends the last command
+
+   I attach the screenshots and both logs as evidence.
+
+## How it is shown
+
+- **Simulator control panel** (its own small browser window served by the simulator): a live "trainer display" with current resistance mode (grade / ERG / level), commanded vs actual watts, flywheel speed, cadence, a connection light and a scrolling byte log, plus sliders for the simulated rider's cadence and effort and fault buttons.
+- **In the app:** the trainer card on the Devices page and the Test page show "Virtual KICKR Core" with a distinct badge, so it can never be mistaken for real hardware. The ride HUD shows the same badge.
+- **Virtual peloton:** the simulator can run N bot riders, each with its own virtual trainer and a rider profile (FTP, weight, pacing style). Their positions reach the app as rider snapshots, which is exactly the path future multiplayer riders will use. In the world they appear as additional 3D riders on the road with name tags. The HUD lists the riders around you with their gap. Drafting physics stays out of scope for this step.

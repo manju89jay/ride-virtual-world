@@ -11,13 +11,16 @@
 
 ## What I can and cannot verify (honest)
 
-- **Can:** build a virtual KICKR Core that runs inside the app and speaks the exact same Bluetooth bytes as the real one. The real connection code then talks to it unchanged. Automated tests can drive it: pair, request control, grade ramp, ERG steps, disconnect/reconnect.
+- **Can:** build a separate virtual KICKR Core program (a "virtual ECU") that speaks the exact same Bluetooth bytes as the real trainer. The app connects to it through the same code path it uses for real hardware. Automated tests can drive it here.
 - **Cannot:** touch your physical KICKR. The real connect-and-control step happens on your PC, using the Test page and the log loop we already have. A simulator built from published specs doesn't prove the real device behaves the same. Your log run is the proof.
 
 ## Build steps
 
-1. **Virtual KICKR Core** (`src/lib/virtual/kickrCore.ts`): a fake Bluetooth device with the FTMS service, Cycling Power service and Wahoo control channel. It has a flywheel physics model (inertia, ERG settle lag, grade ramp, cadence estimate, low-cadence ERG spiral) and replies to control-point commands with real result codes. You set a simulated rider's legs (cadence, effort) on the Test page.
-2. **Transport seam**: `ble.ts` gets its device from an adapter: real Web Bluetooth, or the virtual trainer. All parsing, commands, logging and reconnect logic run identically for both. No shortcuts in the virtual path.
+1. **Standalone virtual KICKR Core** (`tools/kickr-sim/`, a separate Node program with no app code inside). It has a flywheel physics model (inertia, ERG settle lag, grade ramp, cadence estimate, low-cadence ERG spiral), FTMS + Cycling Power + Wahoo control channel byte encoding, and real control-point result codes. A small terminal/web control panel sets the simulated rider (cadence, effort) and injects faults: dropouts, rejected commands, slow acks. A scripted mode runs headless for automated tests.
+   - **Link to the app, two modes:**
+     - **Wire mode (default, verifiable here):** the simulator exposes the GATT services over a local WebSocket (`ws://127.0.0.1:8765`). Every message is the raw Bluetooth byte payload plus the characteristic UUID, so it is effectively Bluetooth carried over a socket.
+     - **Real Bluetooth mode (later, your PC only):** the same simulator advertises as an actual BLE peripheral named "KICKR CORE SIM", using a BLE peripheral library. Then even the real Bluetooth stack gets tested end to end. It needs a Bluetooth adapter that supports peripheral mode. I can't verify this mode here.
+2. **Transport seam in the app**: `ble.ts` gets its device from an adapter, either real Web Bluetooth or the WebSocket "virtual device". All parsing, commands, logging and reconnect logic are shared. The only extra UI is a "Connect to virtual trainer" button on the Devices page, shown in dev builds and the desktop app.
 3. **KICKR-specific connection logic**:
    - Pairing filter matches "KICKR CORE" by name plus the FTMS/CPS/Wahoo services.
    - Order of preference: FTMS, then the Wahoo control channel (old firmware), then read-only Cycling Power.

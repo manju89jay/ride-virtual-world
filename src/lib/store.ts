@@ -4,7 +4,15 @@ import { persist } from "zustand/middleware";
 export type Status = "disconnected" | "connecting" | "connected";
 
 type DeviceState = {
-  trainer: { status: Status; name?: string | undefined; control: boolean };
+  trainer: {
+    status: Status;
+    name?: string | undefined;
+    control: boolean;
+    virtual?: boolean | undefined;
+    /** Which handshake step failed, in plain words */
+    error?: string | undefined;
+    protocol?: "FTMS" | "Wahoo" | "power only" | undefined;
+  };
   hrm: { status: Status; name?: string | undefined };
   controller: { status: Status; name?: string | undefined; lastBit: number | null };
   power: number;

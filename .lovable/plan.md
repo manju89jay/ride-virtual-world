@@ -1,64 +1,39 @@
-# Hedgerow Native — C++ Cycling Engine (Windows / macOS / Linux)
+# Wahoo KICKR Core: learn, simulate, connect, control
 
-A native desktop cycling app in C++, single rider first, built so multiplayer and new routes can be added later. Connects directly to your Zwift Ride (trainer + controllers) and keeps power and resistance in sync.
+## What the KICKR Core is (research summary)
 
-## What I can and cannot do here (stated up front)
+- Direct-drive smart trainer, 1800 W max, ~5.4 kg flywheel, simulates up to 16% grade. Speaks Bluetooth LE and ANT+.
+- Over Bluetooth it offers three ways in. Current firmware supports all of them:
+  1. **FTMS** (the open fitness-machine standard): Indoor Bike Data for power, cadence and speed; Control Point for grade, ERG watts and resistance level. The app already uses this.
+  2. **Cycling Power Service** (0x1818): power plus crank/wheel revolutions. Read-only.
+  3. **Wahoo's own control channel** (Cycling Power service + characteristic `a026e005-0a7d-4ab3-97fa-f1500f9feb8b`): older Wahoo-only commands for ERG, sim mode, wind and weight. Used as a fallback when FTMS isn't available (old firmware).
+- Behaviour worth modelling: ERG takes about 1–3 s to settle on a new target. Grade changes ramp in rather than snap. At low cadence in ERG the "spiral of death" happens (resistance climbs, power can't be held). The trainer reports cadence that it estimates from the flywheel, with no sensor, so cadence lags. It accepts commands from only one app at a time.
 
-- **Can:** design the architecture, write all the C++ source, build files and tests, and compile + unit-test the engine-independent parts (physics, Bluetooth message parsing, workouts) inside this environment. Delivered as a downloadable source package.
-- **Cannot:** run the 3D game window, an Unreal editor, or real Bluetooth here. You build and run it on your PC (Visual Studio on Windows, Xcode on Mac, or CMake on Linux), and we iterate on what you see.
-- The existing web version stays untouched as a reference prototype.
+## What I can and cannot verify (honest)
 
-## Stack decision (recommended — approve or change)
+- **Can:** build a virtual KICKR Core that runs inside the app and speaks the exact same Bluetooth bytes as the real one. The real connection code then talks to it unchanged. Automated tests can drive it: pair, request control, grade ramp, ERG steps, disconnect/reconnect.
+- **Cannot:** touch your physical KICKR. The real connect-and-control step happens on your PC, using the Test page and the log loop we already have. A simulator built from published specs doesn't prove the real device behaves the same. Your log run is the proof.
 
-| Layer | Choice | Why |
-|---|---|---|
-| Language | C++20 | Native performance, same as Zwift and major engines |
-| Rendering / world | **Unreal Engine 5** (C++ project) | Realistic worlds, World Partition streaming for long routes, built-in networking for later multiplayer, free for personal use |
-| Bluetooth | **SimpleBLE** (C++ library) | One API for Windows, macOS and Linux Bluetooth LE |
-| Build | CMake (core) + Unreal build tool (game) | Core library builds and tests anywhere |
-| Tests | doctest | Lightweight, header-only |
+## Build steps
 
-Alternative if Unreal feels too heavy (≈100 GB install): **Godot 4 with C++ (GDExtension)** — lighter and open source, less realistic out of the box. The core library below works with either.
+1. **Virtual KICKR Core** (`src/lib/virtual/kickrCore.ts`): a fake Bluetooth device with the FTMS service, Cycling Power service and Wahoo control channel. It has a flywheel physics model (inertia, ERG settle lag, grade ramp, cadence estimate, low-cadence ERG spiral) and replies to control-point commands with real result codes. You set a simulated rider's legs (cadence, effort) on the Test page.
+2. **Transport seam**: `ble.ts` gets its device from an adapter: real Web Bluetooth, or the virtual trainer. All parsing, commands, logging and reconnect logic run identically for both. No shortcuts in the virtual path.
+3. **KICKR-specific connection logic**:
+   - Pairing filter matches "KICKR CORE" by name plus the FTMS/CPS/Wahoo services.
+   - Order of preference: FTMS, then the Wahoo control channel (old firmware), then read-only Cycling Power.
+   - Auto-reconnect on drop, with the last command re-sent after reconnect.
+   - Commands are rate-limited to ≤ 4 per second, sent only on change, and kept in grade/ERG range (KICKR Core: ±10%..+16%, ERG 0–1800 W).
+   - Optional spindown/calibration command, if the trainer reports support for it.
+4. **Test page upgrades**: a "Virtual KICKR Core" toggle, simulated-rider sliders, a measured response time for each command (sent → acknowledged → power settled), and a pass/fail result for each checklist item. Log export stays the same.
+5. **Automated tests**: unit tests for byte parsing/encoding on both protocols, plus an end-to-end browser test that pairs the virtual KICKR, runs the grade ramp and the ERG test, and checks that power settles within tolerance.
+6. **Docs**: a KICKR Core section in the README with step-by-step pairing on your PC (close Zwift/Wahoo apps first, update firmware in the Wahoo app, then Devices → Pair trainer → Test page).
 
-## Architecture
+## Then on your side
 
-```text
-hedgerow-native/
-  core/                    engine-independent C++ library (compiled + tested here)
-    sim/                   pure physics: step(state, inputs, dt), 30 Hz fixed tick
-    devices/               FTMS trainer, Heart Rate, Zwift Ride controller protocols
-    workouts/              workout definitions, ERG target timing
-    course/                routes as versioned data files (one route now, more later)
-    net/                   snapshot types + interpolation buffer (multiplayer seam)
-    tests/                 unit tests for all of the above
-  game/                    Unreal Engine 5 project
-    Source/Hedgerow/       C++ game module: links core, drives rider pawn, HUD, camera
-    Content/               world, road, terrain, rider model
-  docs/                    architecture, hardware test checklist, multiplayer design
-```
+Run the Test page against the real KICKR Core and send me the log. I compare its response times and acknowledgements with the simulator and fix any differences.
 
-Key rules:
-- **Core never depends on the engine.** Physics and device code are plain C++ — testable, and the same code can run on a future multiplayer server.
-- **Fixed 30 Hz simulation**, rendering interpolates between snapshots — consistent on any PC, and the tick rate a server would use.
-- **Your rider is just one entry in a rider list** fed by snapshots; remote riders later arrive through the same path.
+## Technical notes
 
-## Zwift Ride sync (the main point)
-
-- **Trainer (Zwift Hub inside the Ride):** open Bluetooth fitness standard (FTMS). Read power, cadence, speed ~4×/s; send road gradient (scaled by virtual gear) for hills, or target watts for ERG workouts.
-- **Controllers (shift/steer buttons):** Zwift's proprietary protocol, known from community reverse-engineering ("RideOn" handshake, button bitmask messages). Implemented best-effort; keyboard shifting as guaranteed fallback.
-- **Power sync loop:** your watts → speed in the world → road gradient → trainer resistance, every tick.
-
-## Hardware testing (part of the build)
-
-- Built-in **diagnostics screen**: raw live data per device, every command sent and acknowledged, controller button IDs, connection log, and a "ramp resistance" test.
-- A ~10-minute **checklist** you run with your Ride; you send me the diagnostics log, I fix what it shows.
-
-## Milestones
-
-1. **Core library** — physics, FTMS/HR/controller protocols, workouts, one route, tests. Compiled and tested here. Delivered as a source package.
-2. **Hardware validation** — small command-line tool using the core to pair your Ride and print live power, cadence and buttons. You run it; we fix issues before any 3D work.
-3. **Unreal game** — world, road, rider, chase camera, HUD, workouts, ride history, diagnostics screen.
-4. **Visual pass** — realistic countryside, lighting, scenery.
-5. **Multiplayer design doc** — reviewed with you before any server work.
-
-Out of scope for now: actual multiplayer, Strava upload, multiple worlds.
+- The virtual device implements a minimal `BluetoothDevice`/GATT interface (`getPrimaryService`, `getCharacteristic`, `startNotifications`, `writeValueWithResponse`, `characteristicvaluechanged` events). This keeps `ble.ts` untouched apart from the adapter injection.
+- Simulator physics stays pure, stepping at 10 Hz. Notifications go out at 4 Hz, like the real unit.
+- Zwift Ride controller code is unchanged and still works alongside the KICKR.

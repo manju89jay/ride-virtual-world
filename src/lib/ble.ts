@@ -462,5 +462,6 @@ export async function connectController() {
 }
 
 export function disconnectAll() {
+  manualDisconnect = true;
   [trainerDevice, hrDevice, ctrlDevice].forEach((d) => d?.gatt?.connected && d.gatt.disconnect());
 }
